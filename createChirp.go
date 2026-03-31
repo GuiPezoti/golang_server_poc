@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GuiPezoti/golang_server_poc/internal/auth"
 	"github.com/GuiPezoti/golang_server_poc/internal/database"
 	"github.com/google/uuid"
 )
@@ -22,11 +23,20 @@ type Chirp struct {
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
-		UserId	uuid.UUID `json:"user_id"`
+	}
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't decode parameters", err)
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't decode parameters", err)
+		return
 	}
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
@@ -39,7 +49,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	}
 	chirpParams := database.CreateChirpParams{
 		Body: profanityValidation(params.Body),
-		UserID: params.UserId,
+		UserID: userID,
 	}
 
 	chirpDB, err := cfg.db.CreateChirp(r.Context(), chirpParams)
